@@ -29,26 +29,81 @@
             <button id="logoutBtn" class="btn-secondary">Logout</button>
         </header>
 
+        <div class="tab-navigation">
+            <button class="tab-btn active" data-tab="outbound-tab">Outbound Calls</button>
+            <button class="tab-btn" data-tab="inbound-tab">Inbound Calls</button>
+            <button class="tab-btn" data-tab="recent-tab">Recent Calls</button>
+        </div>
+
         <div class="main-content">
-            <div class="left-panel">
-                <div class="dialpad-container">
-                    <h2>Outbound Call</h2>
-                    <input type="text" id="phoneNumber" placeholder="Enter phone number..." class="phone-input">
-                    <div class="dialpad">
-                        <button class="dialpad-btn">1</button>
-                        <button class="dialpad-btn">2</button>
-                        <button class="dialpad-btn">3</button>
-                        <button class="dialpad-btn">4</button>
-                        <button class="dialpad-btn">5</button>
-                        <button class="dialpad-btn">6</button>
-                        <button class="dialpad-btn">7</button>
-                        <button class="dialpad-btn">8</button>
-                        <button class="dialpad-btn">9</button>
-                        <button class="dialpad-btn">*</button>
-                        <button class="dialpad-btn">0</button>
-                        <button class="dialpad-btn">#</button>
+            <div id="outbound-tab" class="tab-content active">
+                <div class="left-panel">
+                    <div class="dialpad-container">
+                        <h2>Outbound Call</h2>
+                        <input type="text" id="phoneNumber" placeholder="Enter phone number..." class="phone-input">
+                        <div class="dialpad">
+                            <button class="dialpad-btn">1</button>
+                            <button class="dialpad-btn">2</button>
+                            <button class="dialpad-btn">3</button>
+                            <button class="dialpad-btn">4</button>
+                            <button class="dialpad-btn">5</button>
+                            <button class="dialpad-btn">6</button>
+                            <button class="dialpad-btn">7</button>
+                            <button class="dialpad-btn">8</button>
+                            <button class="dialpad-btn">9</button>
+                            <button class="dialpad-btn">*</button>
+                            <button class="dialpad-btn">0</button>
+                            <button class="dialpad-btn">#</button>
+                        </div>
+                        <button id="callBtn" class="btn-primary">Call</button>
                     </div>
-                    <button id="callBtn" class="btn-primary">Call</button>
+                </div>
+            </div>
+
+            <div id="inbound-tab" class="tab-content">
+                <div class="inbound-calls-container">
+                    <h2>Inbound Calls</h2>
+                    <div class="realtime-indicator">
+                        <div class="realtime-dot"></div>
+                        <span>Real-time updates</span>
+                    </div>
+                    <div class="inbound-calls-refresh">
+                        <button id="refreshInboundBtn" class="btn-secondary">Refresh</button>
+                    </div>
+                    <table class="inbound-calls-table">
+                        <thead>
+                            <tr>
+                                <th>Room Name</th>
+                                <th>Room ID</th>
+                                <th>Status</th>
+                                <th>Participants</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inboundCallsBody">
+                            <!-- Inbound calls will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="recent-tab" class="tab-content">
+                <div class="call-log-panel">
+                    <h2>Recent Calls</h2>
+                    <table class="call-log-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Direction</th>
+                                <th>Number</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="callLogBody">
+                            <!-- Call logs will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -74,24 +129,6 @@
                         <button id="acceptBtn" class="btn-control btn-success">Accept</button>
                         <button id="rejectBtn" class="btn-control btn-danger">Reject</button>
                     </div>
-                </div>
-
-                <div class="call-log-panel">
-                    <h2>Recent Calls</h2>
-                    <table class="call-log-table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Direction</th>
-                                <th>Number</th>
-                                <th>Duration</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="callLogBody">
-                            <!-- Call logs will be inserted here by JavaScript -->
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>

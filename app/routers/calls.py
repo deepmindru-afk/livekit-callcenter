@@ -6,7 +6,8 @@ import os
 import uuid
 import asyncio
 from livekit import rtc, api
-from livekit.api import CreateRoomRequest, DeleteRoomRequest, TwirpError
+from livekit.api import CreateRoomRequest, DeleteRoomRequest
+from livekit.api.twirp_client import TwirpError
 from livekit.protocol.sip import CreateSIPParticipantRequest, SIPParticipantInfo
 import json
 
@@ -57,6 +58,14 @@ class LiveKitService:
                     )
                 )
                 logger.info(f"Room created: {room_name}")
+                
+                # Broadcast room update to all connected clients
+                await manager.broadcast_room_update({
+                    "event": "room_created",
+                    "room_name": room_name,
+                    "room_id": response.sid if hasattr(response, 'sid') else None
+                })
+                
                 return response
         except Exception as e:
             logger.error(f"Error creating room: {str(e)}")
@@ -112,6 +121,13 @@ class LiveKitService:
                     DeleteRoomRequest(room=room_name)
                 )
                 logger.info(f"Room deleted: {room_name}")
+                
+                # Broadcast room update to all connected clients
+                await manager.broadcast_room_update({
+                    "event": "room_deleted",
+                    "room_name": room_name
+                })
+                
                 return response
         except TwirpError as e:
             if e.code == "not_found":
@@ -517,20 +533,151 @@ async def get_agent_calls(
     current_agent: Agent = Depends(get_current_agent)
 ):
     # Get all calls for the current agent
-    calls = db.query(Call).filter(Call.agent_id == current_agent.id).order_by(Call.start_time.desc()).all()
+    agent_calls = db.query(Call).filter(Call.agent_id == current_agent.id).order_by(Call.start_time.desc()).all()
+    return agent_calls
+
+@router.get("/calls/active-rooms")
+async def get_active_rooms(
+    db: Session = Depends(get_db),
+    current_agent: Agent = Depends(get_current_agent)
+):
+    """Get active LiveKit rooms for inbound calls"""
+    try:
+        async with LiveKitService.get_client() as livekit_api:
+            # Get all active rooms from LiveKit
+            # The list_rooms method requires a ListRoomsRequest object
+            from livekit.api import ListRoomsRequest
+            response = await livekit_api.room.list_rooms(ListRoomsRequest())
+            
+            # Format the response
+            formatted_rooms = []
+            # The response has a 'rooms' property that contains the list of rooms
+            if hasattr(response, 'rooms'):
+                for room in response.rooms:
+                    # Get participant count for each room
+                    participant_count = len(room.participants) if hasattr(room, 'participants') else 0
+                    
+                    # Safely get creation time if available
+                    creation_time = None
+                    if hasattr(room, 'created_at'):
+                        creation_time = room.created_at
+                    elif hasattr(room, 'creation_time'):
+                        creation_time = room.creation_time
+                    
+                    # Format the room data
+                    formatted_rooms.append({
+                        "room_name": room.name,
+                        "room_id": room.sid,
+                        "status": "Active",
+                        "participant_count": participant_count,
+                        "creation_time": creation_time
+                    })
+            
+            return {"rooms": formatted_rooms}
+    except Exception as e:
+        logger.error(f"Error getting active rooms: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get active rooms: {str(e)}"
+        )
+
+@router.post("/calls/join-room")
+async def join_room(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_agent: Agent = Depends(get_current_agent)
+):
+    """Join an existing LiveKit room as an agent"""
+    room_name = data.get("room_name")
     
-    return [
-        CallOut(
-            id=call.id,
-            agent_id=call.agent_id,
-            caller_id=call.caller_id,
-            direction=call.direction,
-            start_time=call.start_time,
-            duration=call.duration,
-            status=call.status,
-            livekit_room_name=call.livekit_room_name
-        ) for call in calls
-    ]
+    if not room_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Room name is required"
+        )
+    
+    try:
+        # Generate a token for the agent to join the room
+        agent_identity = f"agent_{current_agent.id}"
+        token = generate_livekit_token(agent_identity, room_name)
+        
+        # Create a call record to track this call in our system
+        new_call = Call(
+            agent_id=current_agent.id,
+            caller_id=f"Room: {room_name}",
+            direction=CallDirection.INBOUND.value,
+            start_time=datetime.utcnow(),
+            status=CallStatus.IN_PROGRESS.value,
+            livekit_room_name=room_name
+        )
+        
+        db.add(new_call)
+        db.commit()
+        db.refresh(new_call)
+        
+        # Update agent status to Busy
+        current_agent.status = AgentStatus.BUSY.value
+        db.commit()
+        
+        return {
+            "token": token,
+            "room_name": room_name,
+            "call_id": new_call.id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error joining room: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to join room: {str(e)}"
+        )
+
+@router.post("/calls/end-room")
+async def end_room(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_agent: Agent = Depends(get_current_agent)
+):
+    """End a LiveKit room call"""
+    room_name = data.get("room_name")
+    call_id = data.get("call_id")
+    
+    if not room_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Room name is required"
+        )
+    
+    try:
+        # Update call record if call_id is provided
+        if call_id:
+            db_call = db.query(Call).filter(Call.id == call_id).first()
+            if db_call:
+                # Calculate call duration
+                if db_call.start_time is not None:
+                    duration = (datetime.utcnow() - db_call.start_time).total_seconds()
+                    db_call.duration = float(duration)
+                    db.flush()
+                
+                # Update call status to Completed
+                db_call.status = CallStatus.COMPLETED.value
+                
+                # Update agent status back to Available
+                current_agent.status = AgentStatus.AVAILABLE.value
+                
+                db.commit()
+        
+        # End the room in LiveKit
+        await LiveKitService.end_call(room_name)
+        
+        return {"status": "success", "message": f"Room {room_name} ended successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error ending room: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,  
+            detail=f"Failed to end room: {str(e)}"
+        )
 
 @router.post("/sip/create-participant")
 async def create_sip_participant(

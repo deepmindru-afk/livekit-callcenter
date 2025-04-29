@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const callLogBody = document.getElementById('callLogBody');
     const dialpadButtons = document.querySelectorAll('.dialpad-btn');
     const ringtone = document.getElementById('ringtone');
+    
+    // Tab navigation
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const refreshInboundBtn = document.getElementById('refreshInboundBtn');
+    const inboundCallsBody = document.getElementById('inboundCallsBody');
 
     // Authentication Check
     const token = localStorage.getItem('token');
@@ -48,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize UI
     loadCallHistory();
+    loadInboundCalls();
 
     // Event Listeners
     logoutBtn.addEventListener('click', handleLogout);
@@ -57,6 +64,28 @@ document.addEventListener('DOMContentLoaded', () => {
     hangupBtn.addEventListener('click', handleHangup);
     acceptBtn.addEventListener('click', handleAcceptCall);
     rejectBtn.addEventListener('click', handleRejectCall);
+    refreshInboundBtn.addEventListener('click', loadInboundCalls);
+
+    // Tab switching
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Remove active class from all buttons and tabs
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // Add active class to clicked button and corresponding tab
+            button.classList.add('active');
+            const tabId = button.dataset.tab;
+            document.getElementById(tabId).classList.add('active');
+            
+            // Refresh data when switching to a tab
+            if (tabId === 'inbound-tab') {
+                loadInboundCalls();
+            } else if (tabId === 'recent-tab') {
+                loadCallHistory();
+            }
+        });
+    });
 
     // Dialpad buttons
     dialpadButtons.forEach(button => {
@@ -104,6 +133,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'call_ended':
                 handleCallEnded(data);
+                break;
+            case 'room_update':
+                // Refresh inbound calls list when rooms change
+                console.log('Room update received:', data);
+                
+                // Only auto-refresh if we're on the inbound calls tab
+                const inboundTabActive = document.querySelector('#inbound-tab').classList.contains('active');
+                if (inboundTabActive) {
+                    // If we have specific room data, we could potentially just update that room
+                    // instead of reloading everything
+                    if (data.room && data.room.event) {
+                        if (data.room.event === 'room_created') {
+                            highlightNewRoom(data.room.room_name);
+                        } else if (data.room.event === 'room_deleted') {
+                            removeDeletedRoom(data.room.room_name);
+                        }
+                    } else {
+                        // Just do a full refresh
+                        loadInboundCalls();
+                    }
+                }
                 break;
             default:
                 console.log('Unknown message type:', data.type);
@@ -287,26 +337,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleHangup() {
+        if (!activeCall) {
+            return;
+        }
+        
         try {
-            // Call API to end the call
-            await fetch(`/api/calls/${activeCall.id}/hangup`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            // If it's an inbound call from a room, end the room
+            if (activeCall.direction === 'inbound' && activeCall.room_name) {
+                await fetch('/api/calls/end-room', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        room_name: activeCall.room_name,
+                        call_id: activeCall.id
+                    })
+                });
+            } else {
+                // Regular call hangup logic
+                await fetch(`/api/calls/${activeCall.id}/hangup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+            }
             
-            // End call in Livekit
+            // End the call in the UI and LiveKit
+            handleCallEnded();
+            
             if (callHandler) {
                 callHandler.endCall();
             }
             
-            // Reset UI
-            handleCallEnded();
-            
         } catch (error) {
             console.error('Hangup error:', error);
+            alert(`Hangup failed: ${error.message}`);
         }
     }
 
@@ -548,4 +617,230 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('load', function() {
         setTimeout(forceStatusUpdate, 1000);
     });
+
+    // Track the current rooms to detect changes
+    let currentRooms = [];
+
+    async function loadInboundCalls() {
+        try {
+            const response = await fetch('/api/calls/active-rooms', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch inbound calls');
+            }
+            
+            const data = await response.json();
+            const rooms = data.rooms || [];
+            
+            // Save previous room names before updating
+            const previousRooms = [...currentRooms];
+            
+            // Update current rooms
+            currentRooms = rooms.map(room => room.room_name);
+            
+            // Find new rooms (rooms that weren't in the previous list)
+            const newRooms = rooms.filter(room => 
+                !previousRooms.includes(room.room_name)
+            ).map(room => room.room_name);
+            
+            // Clear the inbound calls table
+            inboundCallsBody.innerHTML = '';
+            
+            if (rooms.length === 0) {
+                // Display a message if no rooms are available
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td colspan="5" style="text-align: center;">No active rooms available</td>
+                `;
+                inboundCallsBody.appendChild(row);
+                return;
+            }
+            
+            // Add each room to the table
+            rooms.forEach(room => {
+                const row = document.createElement('tr');
+                row.dataset.roomName = room.room_name;
+                
+                // Add 'new' class if this is a newly added room
+                if (newRooms.includes(room.room_name) && previousRooms.length > 0) {
+                    row.classList.add('room-item', 'new');
+                    
+                    // Remove the 'new' class after animation completes
+                    setTimeout(() => {
+                        row.classList.remove('new');
+                    }, 2000);
+                } else {
+                    row.classList.add('room-item');
+                }
+                
+                // Format creation time if available
+                let formattedTime = 'N/A';
+                if (room.creation_time) {
+                    try {
+                        const date = new Date(room.creation_time);
+                        formattedTime = date.toLocaleTimeString();
+                    } catch (e) {
+                        console.warn('Unable to format creation time:', e);
+                    }
+                }
+                
+                row.innerHTML = `
+                    <td>${room.room_name}</td>
+                    <td>${room.room_id || 'N/A'}</td>
+                    <td>${room.status || 'Active'}</td>
+                    <td>${room.participant_count || 0}</td>
+                    <td><button class="join-call-btn" data-room="${room.room_name}">Join Call</button></td>
+                `;
+                
+                inboundCallsBody.appendChild(row);
+            });
+            
+            // Add event listeners to the join call buttons
+            document.querySelectorAll('.join-call-btn').forEach(button => {
+                button.addEventListener('click', handleJoinRoom);
+            });
+            
+        } catch (error) {
+            console.error('Error loading inbound calls:', error);
+            
+            // Display error message
+            inboundCallsBody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align: center; color: red;">
+                        Error loading inbound calls: ${error.message}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function highlightNewRoom(roomName) {
+        // First check if the room already exists in the current rooms
+        if (currentRooms.includes(roomName)) {
+            // If it exists, find the row and highlight it
+            const existingRow = document.querySelector(`tr[data-room-name="${roomName}"]`);
+            if (existingRow) {
+                existingRow.classList.add('new');
+                setTimeout(() => {
+                    existingRow.classList.remove('new');
+                }, 2000);
+                return;
+            }
+        }
+        
+        // If we don't have the room, reload the entire list
+        loadInboundCalls();
+    }
+
+    function removeDeletedRoom(roomName) {
+        // Find the row with this room name
+        const rowToRemove = document.querySelector(`tr[data-room-name="${roomName}"]`);
+        if (rowToRemove) {
+            // Add a fade-out effect
+            rowToRemove.style.opacity = '0';
+            rowToRemove.style.transform = 'translateX(20px)';
+            
+            // Remove after animation completes
+            setTimeout(() => {
+                rowToRemove.remove();
+                
+                // If no more rooms, show the "no rooms" message
+                if (inboundCallsBody.querySelectorAll('tr').length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td colspan="5" style="text-align: center;">No active rooms available</td>
+                    `;
+                    inboundCallsBody.appendChild(row);
+                }
+            }, 300);
+            
+            // Also remove from our tracked list
+            const index = currentRooms.indexOf(roomName);
+            if (index !== -1) {
+                currentRooms.splice(index, 1);
+            }
+        } else {
+            // If we can't find the row, reload the entire list
+            loadInboundCalls();
+        }
+    }
+
+    async function handleJoinRoom(event) {
+        const roomName = event.target.dataset.room;
+        
+        if (!roomName) {
+            return;
+        }
+        
+        try {
+            // Check microphone access first
+            if (callHandler && callHandler.checkMicrophoneAccess) {
+                const micStatus = await callHandler.checkMicrophoneAccess();
+                if (!micStatus.supported) {
+                    if (!confirm(`${micStatus.error}\n\nDo you want to continue without microphone access?`)) {
+                        return;
+                    }
+                }
+            }
+            
+            // Update status to Busy
+            await updateAgentStatus('Busy');
+            
+            // Call API to join the room
+            const response = await fetch('/api/calls/join-room', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ room_name: roomName })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to join room');
+            }
+            
+            const data = await response.json();
+            
+            // Update UI to show active call
+            callerId.textContent = `Room: ${roomName}`;
+            activeCallPanel.classList.remove('hidden');
+            
+            // Start call timer
+            startCallTimer();
+            
+            // Store call info
+            activeCall = {
+                id: data.call_id,
+                room_name: roomName,
+                direction: 'inbound'
+            };
+            
+            // Use callHandler to connect to room
+            if (callHandler) {
+                try {
+                    await callHandler.acceptIncomingCall(data.token);
+                } catch (callError) {
+                    console.error('Error in call setup:', callError);
+                    alert(`Call connection error: ${callError.message}`);
+                }
+            }
+            
+            // Switch to the first tab to show the active call
+            tabButtons[0].click();
+            
+        } catch (error) {
+            console.error('Error joining room:', error);
+            alert(`Failed to join room: ${error.message}`);
+            
+            // Revert status to Available
+            updateAgentStatus('Available');
+        }
+    }
 }); 

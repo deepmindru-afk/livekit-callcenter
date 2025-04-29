@@ -1,6 +1,7 @@
 from fastapi.websockets import WebSocket
 import json
 from typing import Dict, List, Optional
+from datetime import datetime
 
 
 class ConnectionManager:
@@ -58,4 +59,21 @@ class ConnectionManager:
             "call_id": call_id,
             "reason": reason
         }
-        await self.send_personal_message(message, agent_id) 
+        await self.send_personal_message(message, agent_id)
+        
+    async def broadcast_room_update(self, room_data: Optional[dict] = None):
+        """Broadcast room updates to all connected agents."""
+        message = {
+            "type": "room_update",
+            "timestamp": str(datetime.now()),
+        }
+        
+        # Add room data if provided
+        if room_data:
+            message["room"] = room_data
+            
+        await self.broadcast(message)
+        
+    async def notify_incoming_call(self, agent_id: str, call_data: dict):
+        """For backward compatibility with existing code."""
+        await self.send_incoming_call(agent_id, call_data) 
