@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Center Agent Interface</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/livekit-client"></script>
+    <script>
+        // LiveKit configuration
+        window.livekitServerUrl = "{{ livekit_ws_url }}";
+        console.log("LiveKit server URL:", window.livekitServerUrl);
+    </script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="agent-info">
+                <span>Agent: </span><span id="agentName"></span>
+            </div>
+            <div class="agent-status">
+                <label for="status">Status: </label>
+                <select id="status">
+                    <option value="Available">Available</option>
+                    <option value="Busy">Busy</option>
+                    <option value="Offline">Offline</option>
+                </select>
+            </div>
+            <button id="logoutBtn" class="btn-secondary">Logout</button>
+        </header>
+
+        <div class="main-content">
+            <div class="left-panel">
+                <div class="dialpad-container">
+                    <h2>Outbound Call</h2>
+                    <input type="text" id="phoneNumber" placeholder="Enter phone number..." class="phone-input">
+                    <div class="dialpad">
+                        <button class="dialpad-btn">1</button>
+                        <button class="dialpad-btn">2</button>
+                        <button class="dialpad-btn">3</button>
+                        <button class="dialpad-btn">4</button>
+                        <button class="dialpad-btn">5</button>
+                        <button class="dialpad-btn">6</button>
+                        <button class="dialpad-btn">7</button>
+                        <button class="dialpad-btn">8</button>
+                        <button class="dialpad-btn">9</button>
+                        <button class="dialpad-btn">*</button>
+                        <button class="dialpad-btn">0</button>
+                        <button class="dialpad-btn">#</button>
+                    </div>
+                    <button id="callBtn" class="btn-primary">Call</button>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div id="activeCall" class="active-call-panel hidden">
+                    <h2>Active Call</h2>
+                    <div class="call-info">
+                        <div>Caller: <span id="callerId"></span></div>
+                        <div>Duration: <span id="callDuration">00:00</span></div>
+                    </div>
+                    <div class="call-controls">
+                        <button id="muteBtn" class="btn-control">Mute</button>
+                        <button id="hangupBtn" class="btn-control btn-danger">Hang Up</button>
+                    </div>
+                </div>
+
+                <div id="incomingCall" class="incoming-call-panel hidden">
+                    <h2>Incoming Call</h2>
+                    <div class="call-info">
+                        <div>From: <span id="incomingCallerId"></span></div>
+                    </div>
+                    <div class="call-controls">
+                        <button id="acceptBtn" class="btn-control btn-success">Accept</button>
+                        <button id="rejectBtn" class="btn-control btn-danger">Reject</button>
+                    </div>
+                </div>
+
+                <div class="call-log-panel">
+                    <h2>Recent Calls</h2>
+                    <table class="call-log-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Direction</th>
+                                <th>Number</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="callLogBody">
+                            <!-- Call logs will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio elements for call handling -->
+    <audio id="remoteAudio" autoplay controls style="display: none;"></audio>
+    <audio id="ringtone" src="/static/sounds/ringtone.mp3" loop></audio>
+    
+    <!-- Debug panel for audio troubleshooting -->
+    <div id="audioDebug" style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; padding: 5px; font-size: 10px; display: none;">
+        <div>Audio Status: <span id="audioStatus">Initializing</span></div>
+        <div>Mic Level: <span id="micLevel">N/A</span></div>
+        <button onclick="document.getElementById('remoteAudio').play()">Force Play Audio</button>
+    </div>
+    
+    <script>
+        // Add audio troubleshooting event listener
+        window.addEventListener('audioIssueDetected', function(event) {
+            console.log('Audio issue detected:', event.detail);
+            document.getElementById('audioDebug').style.display = 'block';
+            document.getElementById('audioStatus').textContent = event.detail.message;
+        });
+    </script>
+
+    <script src="/static/js/livekit-handler.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html> 
