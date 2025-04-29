@@ -554,8 +554,19 @@ async def get_active_rooms(
             # The response has a 'rooms' property that contains the list of rooms
             if hasattr(response, 'rooms'):
                 for room in response.rooms:
-                    # Get participant count for each room
-                    participant_count = len(room.participants) if hasattr(room, 'participants') else 0
+                    # Get participant count for each room - check different possible attributes
+                    participant_count = 0
+                    
+                    # Try different ways to get participant count
+                    if hasattr(room, 'num_participants'):
+                        participant_count = room.num_participants
+                    elif hasattr(room, 'participant_count'):
+                        participant_count = room.participant_count
+                    elif hasattr(room, 'participants') and isinstance(room.participants, list):
+                        participant_count = len(room.participants)
+                    
+                    # For debugging
+                    logger.info(f"Room attributes: {dir(room)}")
                     
                     # Safely get creation time if available
                     creation_time = None
@@ -771,4 +782,72 @@ async def check_livekit_connection():
             "message": f"Failed to check LiveKit connection: {str(e)}",
             "livekit_url": LIVEKIT_URL,
             "livekit_ws_url": LIVEKIT_WS_URL
-        } 
+        }
+
+@router.get("/calls/room/{room_name}")
+async def get_room_details(
+    room_name: str,
+    db: Session = Depends(get_db),
+    current_agent: Agent = Depends(get_current_agent)
+):
+    """Get detailed information about a specific LiveKit room"""
+    try:
+        async with LiveKitService.get_client() as livekit_api:
+            # Get all rooms and filter by name
+            from livekit.api import ListRoomsRequest
+            rooms_response = await livekit_api.room.list_rooms(ListRoomsRequest())
+            
+            # Find the room by name
+            room = None
+            if hasattr(rooms_response, 'rooms'):
+                for r in rooms_response.rooms:
+                    if r.name == room_name:
+                        room = r
+                        break
+            
+            if not room:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Room {room_name} not found"
+                )
+            
+            # Get all participants in the room
+            participants = []
+            try:
+                from livekit.api import ListParticipantsRequest
+                participants_response = await livekit_api.room.list_participants(
+                    ListParticipantsRequest(room=room_name)
+                )
+                
+                if hasattr(participants_response, 'participants'):
+                    participants = participants_response.participants
+            except Exception as part_err:
+                logger.error(f"Error getting participants: {str(part_err)}")
+                
+            # Format the response
+            room_data = {
+                "room_name": room.name,
+                "room_id": room.sid,
+                "status": "Active",
+                "participant_count": len(participants) if isinstance(participants, list) else 0,
+                "creation_time": room.creation_time if hasattr(room, 'creation_time') else None,
+                "participants": []
+            }
+            
+            # Add participant details
+            for participant in participants:
+                if isinstance(participant, object):
+                    participant_data = {
+                        "id": participant.identity if hasattr(participant, 'identity') else None,
+                        "name": participant.name if hasattr(participant, 'name') else None,
+                        "is_publisher": participant.is_publisher if hasattr(participant, 'is_publisher') else False
+                    }
+                    room_data["participants"].append(participant_data)
+            
+            return room_data
+    except Exception as e:
+        logger.error(f"Error getting room details: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get room details: {str(e)}"
+        ) 

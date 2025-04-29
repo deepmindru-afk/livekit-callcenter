@@ -662,8 +662,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
+            // Enhanced load: fetch detailed info for each room
+            const enhancedRooms = await Promise.all(
+                rooms.map(async (room) => {
+                    try {
+                        // Fetch detailed room info for accurate participant count
+                        const detailResponse = await fetch(`/api/calls/room/${room.room_name}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        
+                        if (detailResponse.ok) {
+                            const detailData = await detailResponse.json();
+                            // Override participant count with accurate data
+                            return {
+                                ...room,
+                                participant_count: detailData.participant_count,
+                                participants: detailData.participants || []
+                            };
+                        }
+                    } catch (err) {
+                        console.warn(`Could not fetch details for room ${room.room_name}:`, err);
+                    }
+                    // Fall back to original room data if detailed fetch fails
+                    return room;
+                })
+            );
+            
             // Add each room to the table
-            rooms.forEach(room => {
+            enhancedRooms.forEach(room => {
                 const row = document.createElement('tr');
                 row.dataset.roomName = room.room_name;
                 
@@ -690,11 +719,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 
+                // Create participant info tooltip if available
+                let participantInfo = '';
+                if (room.participants && room.participants.length > 0) {
+                    const participantList = room.participants
+                        .map(p => p.name || p.id || 'Unknown')
+                        .join(', ');
+                    participantInfo = ` title="${participantList}"`;
+                }
+                
                 row.innerHTML = `
                     <td>${room.room_name}</td>
                     <td>${room.room_id || 'N/A'}</td>
                     <td>${room.status || 'Active'}</td>
-                    <td>${room.participant_count || 0}</td>
+                    <td${participantInfo}>${room.participant_count || 0}</td>
                     <td><button class="join-call-btn" data-room="${room.room_name}">Join Call</button></td>
                 `;
                 
