@@ -33,7 +33,7 @@ else:
     # Convert http:// to ws:// and https:// to wss://
     LIVEKIT_WS_URL = LIVEKIT_URL.replace('http://', 'ws://').replace('https://', 'wss://')
 
-LIVEKIT_SIP_TRUNK_ID = os.getenv('LIVEKIT_SIP_TRUNK_ID', 'ST_MhfxHP2UYVK7')
+LIVEKIT_SIP_TRUNK_ID = os.getenv('LIVEKIT_SIP_TRUNK_ID', 'ST_n7M4h5eh3ypR')
 # LIVEKIT_SIP_TRUNK_ID = os.getenv('LIVEKIT_SIP_TRUNK_ID', 'ST_uQh2fSqVd487')
 
 # Logger setup - can be expanded in the future
