@@ -26,6 +26,11 @@
                     <option value="Offline">Offline</option>
                 </select>
             </div>
+            <div class="auto-assignment-controls">
+                <div class="auto-assignment-status">
+                    
+                </div>
+            </div>
             <button id="logoutBtn" class="btn-secondary">Logout</button>
         </header>
 
@@ -33,6 +38,7 @@
             <button class="tab-btn active" data-tab="outbound-tab">Outbound Calls</button>
             <button class="tab-btn" data-tab="inbound-tab">Inbound Calls</button>
             <button class="tab-btn" data-tab="recent-tab">Recent Calls</button>
+            <button class="tab-btn" data-tab="auto-assignment-tab">Auto-Assignment</button>
         </div>
 
         <div class="main-content">
@@ -107,6 +113,93 @@
                 </div>
             </div>
 
+            <div id="auto-assignment-tab" class="tab-content">
+                <div class="auto-assignment-guide">
+                    <h2>Auto-Assignment Feature</h2>
+                    <div class="guide-content">
+                        <div class="guide-section">
+                            <h3>🚀 How It Works</h3>
+                            <p>Auto-Assignment automatically routes incoming calls to available agents. When a new inbound call arrives, the system:</p>
+                            <ol>
+                                <li>Detects new inbound rooms (with "inbound-" prefix)</li>
+                                <li>Finds available agents (status = "Available")</li>
+                                <li>Sends call invitations to agents one by one</li>
+                                <li>Assigns the call to the first agent who accepts</li>
+                                <li>If rejected or timeout (30s), moves to next agent</li>
+                            </ol>
+                        </div>
+
+                        <div class="guide-section">
+                            <h3>🎯 Getting Started</h3>
+                            <div class="guide-steps">
+                                <div class="step">
+                                    <div class="step-number">1</div>
+                                    <div class="step-content">
+                                        <strong>Set Status to Available</strong>
+                                        <p>Make sure your agent status is set to "Available" to receive call invitations.</p>
+                                    </div>
+                                </div>
+                                <div class="step">
+                                    <div class="step-number">2</div>
+                                    <div class="step-content">
+                                        <strong>Start Auto-Assignment</strong>
+                                        <p>Click the "Start" button in the header to activate auto-assignment monitoring.</p>
+                                    </div>
+                                </div>
+                                <div class="step">
+                                    <div class="step-number">3</div>
+                                    <div class="step-content">
+                                        <strong>Receive Invitations</strong>
+                                        <p>When a call comes in, you'll see a modal with caller information and 30 seconds to respond.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="guide-section">
+                            <h3>⌨️ Keyboard Shortcuts</h3>
+                            <div class="shortcuts">
+                                <div class="shortcut"><kbd>Enter</kbd> or <kbd>Space</kbd> - Accept call invitation</div>
+                                <div class="shortcut"><kbd>Escape</kbd> - Decline call invitation</div>
+                            </div>
+                        </div>
+
+                        <div class="guide-section">
+                            <h3>📊 Status Monitoring</h3>
+                            <p>Click on the "Auto-Assignment" status indicator in the header to view:</p>
+                            <ul>
+                                <li>Service status (Running/Stopped)</li>
+                                <li>Number of pending assignments</li>
+                                <li>Current pending call details</li>
+                                <li>Last update timestamp</li>
+                            </ul>
+                        </div>
+
+                        <div class="guide-section">
+                            <h3>🔧 Troubleshooting</h3>
+                            <div class="troubleshooting">
+                                <div class="issue">
+                                    <strong>Not receiving invitations?</strong>
+                                    <ul>
+                                        <li>Check your agent status is "Available"</li>
+                                        <li>Ensure auto-assignment is started</li>
+                                        <li>Verify WebSocket connection (check browser console)</li>
+                                    </ul>
+                                </div>
+                                <div class="issue">
+                                    <strong>Modal not showing?</strong>
+                                    <ul>
+                                        <li>Check browser permissions for notifications</li>
+                                        <li>Disable pop-up blockers</li>
+                                        <li>Refresh the page and try again</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="right-panel">
                 <div id="activeCall" class="active-call-panel hidden">
                     <h2>Active Call</h2>
@@ -134,6 +227,64 @@
         </div>
     </div>
 
+    <!-- Call Invitation Modal for Auto-Assignment -->
+    <div id="callInvitationModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📞 Call Invitation</h2>
+                <div class="invitation-timer">
+                    <span id="invitationCountdown">30</span>s remaining
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="caller-info">
+                    <div class="caller-icon">📞</div>
+                    <div class="caller-details">
+                        <div class="caller-label">Incoming call from:</div>
+                        <div class="caller-number" id="invitationCallerId">+1234567890</div>
+                        <div class="room-info">Room: <span id="invitationRoomName">inbound-...</span></div>
+                    </div>
+                </div>
+                <div class="invitation-actions">
+                    <button id="acceptInvitationBtn" class="btn-primary btn-large">
+                        ✓ Accept Call
+                    </button>
+                    <button id="rejectInvitationBtn" class="btn-secondary btn-large">
+                        ✗ Decline
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-Assignment Status Panel -->
+    <div id="autoAssignmentPanel" class="status-panel hidden">
+        <div class="panel-header">
+            <h3>Auto-Assignment Status</h3>
+            <button id="closeStatusPanelBtn" class="close-btn">×</button>
+        </div>
+        <div class="panel-content">
+            <div class="status-item">
+                <span class="status-label">Service Status:</span>
+                <span id="serviceStatus" class="status-value">Stopped</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Pending Assignments:</span>
+                <span id="pendingCount" class="status-value">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Last Update:</span>
+                <span id="lastUpdate" class="status-value">Never</span>
+            </div>
+            <div class="pending-assignments" id="pendingAssignments">
+                <!-- Pending assignments will be populated here -->
+            </div>
+        </div>
+    </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Audio elements for call handling -->
     <audio id="remoteAudio" autoplay controls style="display: none;"></audio>
     <audio id="ringtone" src="/static/sounds/ringtone.mp3" loop></audio>
@@ -155,6 +306,7 @@
     </script>
 
     <script src="/static/js/livekit-handler.js"></script>
+    <script src="/static/js/auto-assignment.js"></script>
     <script src="/static/js/main.js"></script>
 </body>
 </html> 
