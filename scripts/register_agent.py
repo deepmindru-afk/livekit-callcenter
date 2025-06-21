@@ -6,9 +6,9 @@ url = "http://localhost:8000/api/register"  # For registration
 
 # Agent details
 agent_data = {
-    "username": "agent2",
+    "username": "agent1",
     "password": "password123",
-    "full_name": "Agent Two"
+    "full_name": "Agent One"
 }
 
 # Send the registration request
@@ -21,14 +21,14 @@ print(f"Response: {response.json() if response.status_code == 200 else response.
 # Now let's also try logging in
 login_url = "http://localhost:8000/api/login"
 login_data = {
-    "username": "agent2",
+    "username": "agent1",
     "password": "password123"
 }
 
 # The login endpoint expects form data, not JSON
 login_response = requests.post(
     login_url, 
-    data={"username": "agent2", "password": "password123"}
+    data={"username": "agent1", "password": "password123"}
 )
 
 print("\nLogin attempt:")

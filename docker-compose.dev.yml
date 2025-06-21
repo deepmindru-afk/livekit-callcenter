@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Main application service for development
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Application Settings
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-me}
+      - DEBUG=${DEBUG:-True}
+      - APP_NAME=Call Center API (Development)
+      
+      # Database Configuration (SQLite for development)
+      - DATABASE_URL=sqlite:///./data/callcenter.db
+      
+      # LiveKit Configuration
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_WS_URL=${LIVEKIT_WS_URL}
+      - LIVEKIT_SIP_TRUNK_ID=${LIVEKIT_SIP_TRUNK_ID}
+      
+      # Security Settings
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=480
+    volumes:
+      # Mount for SQLite database persistence
+      - ./data:/app/data
+      # Mount for logs
+      - ./logs:/app/logs
+      # Mount application code for development (hot reload)
+      - ./app:/app/app:ro
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload 

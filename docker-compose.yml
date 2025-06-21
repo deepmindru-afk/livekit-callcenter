@@ -1,0 +1,91 @@
+version: "3.8"
+
+services:
+  # Main application service
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Application Settings
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DEBUG=${DEBUG:-False}
+      - APP_NAME=Call Center API
+
+      # Database Configuration (SQLite for development, PostgreSQL for production)
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./callcenter.db}
+
+      # LiveKit Configuration
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_WS_URL=${LIVEKIT_WS_URL}
+      - LIVEKIT_SIP_TRUNK_ID=${LIVEKIT_SIP_TRUNK_ID}
+
+      # Security Settings
+      - ALGORITHM=${ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+    volumes:
+      # Mount for SQLite database persistence (development)
+      - ./data:/app/data
+      # Mount for logs
+      - ./logs:/app/logs
+      # Mount static files for development
+      - ./app/static:/app/app/static
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks:
+      - callcenter-network
+
+  # PostgreSQL database service (for production)
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-callcenter}
+      - POSTGRES_USER=${POSTGRES_USER:-callcenter_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-callcenter_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - callcenter-network
+
+  # Redis for caching and session management (optional)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - callcenter-network
+    command: redis-server --appendonly yes
+
+  # LiveKit server (optional - for local development)
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    environment:
+      - LIVEKIT_CONFIG_FILE=/etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    restart: unless-stopped
+    networks:
+      - callcenter-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  callcenter-network:
+    driver: bridge
