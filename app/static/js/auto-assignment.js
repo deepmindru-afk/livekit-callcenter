@@ -30,21 +30,6 @@ class AutoAssignmentManager {
       pendingAssignments: document.getElementById("pendingAssignments"),
     };
 
-    // // Check if all elements were found
-    // const missingElements = Object.entries(this.elements)
-    //   .filter(([key, element]) => !element)
-    //   .map(([key]) => key);
-
-    // if (missingElements.length > 0) {
-    //   console.error("Missing auto-assignment UI elements:", missingElements);
-    //   this.showNotification(
-    //     "Auto-assignment UI elements missing: " + missingElements.join(", "),
-    //     "error"
-    //   );
-    // } else {
-    //   console.log("All auto-assignment UI elements found successfully");
-    // }
-
     // Initialize status
     this.updateUI();
     this.updateDebugPanel();
@@ -67,11 +52,6 @@ class AutoAssignmentManager {
   }
 
   bindEvents() {
-    // Toggle auto-assignment
-    // this.elements.toggleBtn.addEventListener("click", () => {
-    //   this.toggleAutoAssignment();
-    // });
-
     // Call invitation responses
     this.elements.acceptBtn.addEventListener("click", () => {
       this.respondToInvitation(true);
@@ -80,15 +60,6 @@ class AutoAssignmentManager {
     this.elements.rejectBtn.addEventListener("click", () => {
       this.respondToInvitation(false, "user_declined");
     });
-
-    // // Status panel
-    // this.elements.statusIndicator.addEventListener("click", () => {
-    //   this.showStatusPanel();
-    // });
-
-    // this.elements.closeStatusPanel.addEventListener("click", () => {
-    //   this.hideStatusPanel();
-    // });
 
     // Modal overlay click to close
     this.elements.modal.addEventListener("click", (event) => {
@@ -683,27 +654,8 @@ window.autoAssignmentManager = null;
 
 // Initialize when DOM is ready and make sure all elements exist
 function initializeAutoAssignment() {
-  // Check if all required elements exist
-  // const requiredElements = [
-  //   "toggleAutoAssignmentBtn",
-  //   "autoAssignmentStatus",
-  //   "autoAssignmentState",
-  //   "callInvitationModal",
-  //   "acceptInvitationBtn",
-  //   "rejectInvitationBtn",
-  // ];
-
-  // const allElementsExist = requiredElements.every((id) =>
-  //   document.getElementById(id)
-  // );
-
-  // if (allElementsExist) {
   console.log("Initializing auto-assignment manager...");
   window.autoAssignmentManager = new AutoAssignmentManager();
-  // } else {
-  //   console.warn("Auto-assignment elements not found, retrying in 1 second...");
-  //   setTimeout(initializeAutoAssignment, 1000);
-  // }
 }
 
 // Initialize when DOM is ready
